@@ -6,7 +6,81 @@ datasource db {
   provider = "mongodb"
   url      = env("DATABASE_URL")
 }
+model Publicaciones {
+  id        String                  @id @default(auto()) @map("_id") @db.ObjectId
+  content   String
+  createdAt DateTime                @db.Date
+  hashtags  String[]
+  images    String[]
+  //  likes     String[]                // Usuarios que dieron like
+  mentions  String[]                // Usuarios mencionados
+  privacy   String
+  user      String                  @db.ObjectId     // Usuario que crea la publicación
+  videos    Json?                   // Videos opcionales
+  likes     Like[]                  // Relación con los likes de la publicación
+}
+
+model PublicacionesComments {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime @db.Date
+  text      String
+  user      String   @db.ObjectId     // Usuario que hizo el comentario
+
+  Like Like[]
+}
+model Like {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  user       Usuarios @relation(fields: [userId], references: [id])
+  userId      String   @db.ObjectId
+  post       Publicaciones? @relation(fields: [postId], references: [id])
+  postId      String?   @db.ObjectId
+  comment    PublicacionesComments? @relation(fields: [commentId], references: [id])
+  commentId   String?   @db.ObjectId
+  message    Mensajes? @relation(fields: [messageId], references: [id])
+  messageId   String?   @db.ObjectId
+  createdAt  DateTime  @db.Date
+  tipoReaccion String
+}
+
+model Chats {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt    DateTime @db.Date
+  lastMessage  String   @db.ObjectId
+  participants String[]  // Array de IDs de los participantes
+}
+
+model Mensajes {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  chat      String   @db.ObjectId      // ID del chat
+  content   String
+  createdAt DateTime @db.Date
+  read      Boolean
+  sender    String   @db.ObjectId      // ID del usuario que envió el mensaje
+
+  Like Like[]
+}
+
+model Notificaciones {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  user      String   @db.ObjectId   // ID del usuario que recibe la notificación
+  from      String   @db.ObjectId   // ID del usuario que genera la notificación (puede ser el que interactúa)
+  post      String   @db.ObjectId   // ID de la publicación (si aplica)
+  type      String                   // Tipo de notificación: Like, Comentario, Mención, etc.
+  read      Boolean  @default(false)
+  createdAt DateTime @db.Date
+}
 
 model Usuarios {
-  id String @id @default(auto()) @map("_id") @db.ObjectId
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  username   String   @unique
+  email      String   @unique
+  password   String
+  bio        String
+  createdAt  DateTime @db.Date
+  followers  String[]  // Lista de IDs de seguidores
+  following  String[]  // Lista de IDs de personas a las que sigue
+  profilePic String
+  privacy    String    // Privacidad del perfil (público, solo amigos, privado)
+  likes      Like[]    // Relación con los likes realizados por el usuario
 }
+
