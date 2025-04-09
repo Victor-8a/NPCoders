@@ -76,16 +76,16 @@ model Notificaciones {
 }
 
 model Usuarios {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  username   String   @unique
-  email      String   @unique
-  password   String
-  bio        String
-  createdAt  DateTime @db.Date
-  followers  String[]  // Lista de IDs de seguidores
-  following  String[]  // Lista de IDs de personas a las que sigue
-  profilePic String
-  privacy    String    // Privacidad del perfil (público, solo amigos, privado)
-  likes      Like[]    // Relación con los likes realizados por el usuario
-  blockedUsers String[]  // Lista de usuarios bloqueados
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  username     String   @unique
+  email        String   @unique
+  password     String
+  bio          String
+  createdAt    DateTime @default(now())
+  followers    String[]
+  following    String[]
+  profilePic   String
+  privacy      String
+  likes        Like[]
+  blockedUsers String[]
 }
