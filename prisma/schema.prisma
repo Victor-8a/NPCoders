@@ -98,7 +98,6 @@ model Chats {
   createdAt    DateTime   @default(now())
   lastMessageId String?   @db.ObjectId
   participantIds String[] @db.ObjectId @default([])
-  // Cambiar messageIds por relación directa si es necesario
   mensajes     Mensajes[]  @relation("ChatMessages")
 }
 
