@@ -11,12 +11,15 @@
 
 import 'reflect-metadata'
 import { Ignitor, prettyPrintError } from '@adonisjs/core'
+import { setupWebSocket } from '#start/socket'
+import { createServer } from 'http'
 
 /**
  * URL to the application root. AdonisJS need it to resolve
  * paths to file and directories for scaffolding commands
  */
 const APP_ROOT = new URL('../', import.meta.url)
+const httpServer = createServer()
 
 /**
  * The importer is used to import files in context of the
@@ -38,7 +41,10 @@ new Ignitor(APP_ROOT, { importer: IMPORTER })
     app.listenIf(app.managedByPm2, 'SIGINT', () => app.terminate())
   })
   .httpServer()
-  .start()
+  .start().then(() => {
+    console.log('🚀 Servidor HTTP iniciado')
+    setupWebSocket(httpServer)
+  })
   .catch((error) => {
     process.exitCode = 1
     prettyPrintError(error)
