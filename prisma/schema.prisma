@@ -7,81 +7,172 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum TipoPrivacidad {
+  PUBLICO
+  PRIVADO
+  SOLO_AMIGOS
+}
+
+enum TipoReaccion {
+  ME_GUSTA
+  ME_ENCANTA
+  ME_DIVIERTE
+  ME_ASOMBRA
+  ME_ENTRISTECE
+  ME_ENOJA
+}
+
+model Usuario {
+  id           String      @id @default(auto()) @map("_id") @db.ObjectId
+  username     String      @unique
+  email        String      @unique
+  password     String
+  bio          String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  profilePic   String?
+  privacidad   TipoPrivacidad @default(PUBLICO)
+
+  // Relaciones como arrays de IDs
+  followingIds  String[]   @db.ObjectId @default([])
+  followersIds  String[]   @db.ObjectId @default([])
+  blockedIds    String[]   @db.ObjectId @default([])
+  chatIds       String[]   @db.ObjectId @default([])
+
+  // Relaciones con otros modelos
+  publicaciones Publicaciones[]
+  likes        Like[]
+  comentarios  PublicacionesComments[]
+  mensajes     Mensajes[]
+  notificacionesRecibidas Notificaciones[] @relation("NotificacionesRecibidas")
+  notificacionesEnviadas  Notificaciones[] @relation("NotificacionesEnviadas")
+  accessTokens            AccessToken[]
+
+  Story Story[]
+
+  View View[]
+}
+
+model AccessToken {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String      @db.ObjectId
+  user      Usuario     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+}
+
+
 model Publicaciones {
-  id        String                  @id @default(auto()) @map("_id") @db.ObjectId
-  content   String
-  createdAt DateTime                @db.Date
-  hashtags  String[]
-  images    String[]
-  //  likes     String[]                // Usuarios que dieron like
-  mentions  String[]                // Usuarios mencionados
-  privacy   String
-  user      String                  @db.ObjectId     // Usuario que crea la publicación
-  videos    Json?                   // Videos opcionales
-  likes     Like[]                  // Relación con los likes de la publicación
+  id          String        @id @default(auto()) @map("_id") @db.ObjectId
+  content     String       
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  hashtags    String[]      @default([])
+  imagenes    String[]      @default([])
+ menciones      String[]   @db.ObjectId @default([])  // IDs de usuarios mencionados
+  mencionesUsernames String[] @default([])  // Usernames para fácil visualización
+  privacidad  TipoPrivacidad @default(PUBLICO)
+  autor       Usuario       @relation(fields: [autorId], references: [id])
+  autorId     String        @db.ObjectId
+  videos      String[]      @default([])
+  reacciones  Like[]        @relation("PublicacionReacciones")
+  comentarios PublicacionesComments[]
+  hashtagIds  String[]      @db.ObjectId @default([])  // Referencias al modelo Hashtag
 }
 
 model PublicacionesComments {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  createdAt DateTime @db.Date
-  text      String
-  user      String   @db.ObjectId     // Usuario que hizo el comentario
-
-  Like Like[]
+  id           String      @id @default(auto()) @map("_id") @db.ObjectId
+  text         String
+  createdAt    DateTime    @default(now())
+  user        Usuario     @relation(fields: [userId], references: [id])
+  userId      String      @db.ObjectId
+  likes       Like[]      @relation("LikesComentario")
+  publicacion Publicaciones @relation(fields: [publicacionId], references: [id])
+  publicacionId String    @db.ObjectId
 }
+
 model Like {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  user       Usuarios @relation(fields: [userId], references: [id])
-  userId      String   @db.ObjectId
-  post       Publicaciones? @relation(fields: [postId], references: [id])
-  postId      String?   @db.ObjectId
-  comment    PublicacionesComments? @relation(fields: [commentId], references: [id])
-  commentId   String?   @db.ObjectId
-  message    Mensajes? @relation(fields: [messageId], references: [id])
-  messageId   String?   @db.ObjectId
-  createdAt  DateTime  @db.Date
-  tipoReaccion String
+  id          String         @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt   DateTime       @default(now())
+  tipoReaccion TipoReaccion  @default(ME_GUSTA)
+  
+  user        Usuario        @relation(fields: [userId], references: [id])
+  userId      String         @db.ObjectId
+  
+  post        Publicaciones? @relation(fields: [postId], references: [id], name: "PublicacionReacciones")
+  postId      String?        @db.ObjectId
+  
+  comment     PublicacionesComments? @relation(fields: [commentId], references: [id], name: "LikesComentario")
+  commentId   String?        @db.ObjectId
+
+  message     Mensajes?      @relation(fields: [messageId], references: [id], name: "LikeMensaje")
+  messageId   String?        @db.ObjectId
 }
 
 model Chats {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
-  createdAt    DateTime @db.Date
-  lastMessage  String   @db.ObjectId
-  participants String[]  // Array de IDs de los participantes
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt    DateTime   @default(now())
+  lastMessageId String?   @db.ObjectId
+  participantIds String[] @db.ObjectId @default([])
+  mensajes     Mensajes[]  @relation("ChatMessages")
 }
 
-model Mensajes {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  chat      String   @db.ObjectId      // ID del chat
-  content   String
-  createdAt DateTime @db.Date
-  read      Boolean
-  sender    String   @db.ObjectId      // ID del usuario que envió el mensaje
 
-  Like Like[]
+model Mensajes {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  chat      Chats     @relation(fields: [chatId], references: [id], name: "ChatMessages")
+  chatId    String    @db.ObjectId
+  content   String
+  createdAt DateTime  @default(now())
+  read      Boolean   @default(false)
+  sender    Usuario   @relation(fields: [senderId], references: [id])
+  senderId  String    @db.ObjectId
+
+  likes     Like[]    @relation("LikeMensaje")
 }
 
 model Notificaciones {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  user      String   @db.ObjectId   // ID del usuario que recibe la notificación
-  from      String   @db.ObjectId   // ID del usuario que genera la notificación (puede ser el que interactúa)
-  post      String   @db.ObjectId   // ID de la publicación (si aplica)
-  type      String                   // Tipo de notificación: Like, Comentario, Mención, etc.
-  read      Boolean  @default(false)
-  createdAt DateTime @db.Date
+  id        String      @id @default(auto()) @map("_id") @db.ObjectId
+  
+  // Receptor
+  user      Usuario     @relation(fields: [userId], references: [id], name: "NotificacionesRecibidas")
+  userId    String      @db.ObjectId
+  
+  // Emisor
+  from      Usuario     @relation(fields: [fromId], references: [id], name: "NotificacionesEnviadas")
+  fromId    String      @db.ObjectId
+  
+  
+}
+model Hashtag {
+  id         String       @id @default(auto()) @map("_id") @db.ObjectId
+  tag        String       @unique  // Ej: "#viajes"
+  count      Int          @default(1)  // Número de veces usado
+  publicaciones String[]  @db.ObjectId @default([]) // IDs de publicaciones que lo usan
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+}
+model Story {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  content        String    // URL de la imagen/video o texto
+  type           String    // "IMAGE", "VIDEO", "TEXT"
+  backgroundColor String?  // Para stories de texto
+  duration       Int       @default(5) // Duración en segundos
+  expiresAt      DateTime  // Expira en 24 horas
+  userId         String    @db.ObjectId
+  user           Usuario   @relation(fields: [userId], references: [id])
+  view          View[]
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 }
 
-model Usuarios {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  username   String   @unique
-  email      String   @unique
-  password   String
-  bio        String
-  createdAt  DateTime @db.Date
-  followers  String[]  // Lista de IDs de seguidores
-  following  String[]  // Lista de IDs de personas a las que sigue
-  profilePic String
-  privacy    String    // Privacidad del perfil (público, solo amigos, privado)
-  likes      Like[]    // Relación con los likes realizados por el usuario
-}
+model View {
+  id       String   @id @default(auto()) @map("_id") @db.ObjectId
+  storyId  String   @db.ObjectId
+  story    Story   @relation(fields: [storyId], references: [id])
+  userId   String   @db.ObjectId
+  user     Usuario  @relation(fields: [userId], references: [id])
+  viewedAt DateTime @default(now())
 
+  @@unique([storyId, userId]) // Evitar vistas duplicadas
+}
