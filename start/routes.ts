@@ -53,13 +53,13 @@ router.group(() => {
   }).prefix('/followers')
 
 
-  router.group(() => {
-    router.get('/posts', [PostsController, 'index'])
-    router.post('/posts', [PostsController, 'store'])
-    router.get('/userPosts', [PostsController, 'userPosts'])
-    router.post('/postear', [PostsController, 'store'])
-  })
-  .prefix('/posts')
+router.group(() => {
+  router.get('/posts', [PostsController, 'index'])        // Feed general (posts del usuario + seguidores)
+  router.get('/user', [PostsController, 'userPosts'])     // Posts del usuario autenticado
+  router.post('/posts', [PostsController, 'store'])       // Crear post
+  router.post('/postear', [PostsController, 'store'])     // Alias (por si tienes una ruta antigua)
+}).prefix('/posts')
+
   
 router.group(() => {
   router.group(() => {
