@@ -6,8 +6,6 @@ import env from '#start/env'
 const prisma = new PrismaClient()
 
 export default class PostsController {
-    
-
   public async index({ request, response }: HttpContext) {
     const token = request.header('Authorization')?.replace('Bearer ', '')
 
@@ -19,16 +17,24 @@ export default class PostsController {
       const decoded = jwt.verify(token, env.get('APP_KEY')) as { userId: string }
       const { page = 1, limit = 100 } = request.qs()
 
+      // Ajusta el nombre del campo de relación según tu esquema Prisma
+      const user = await prisma.usuario.findUnique({
+        where: { id: decoded.userId },
+        select: { followingIds: true } // followingIds debe ser un array de strings (IDs)
+      })
+
+      const followingIds = user?.followingIds || []
+
       const posts = await prisma.publicaciones.findMany({
         where: {
+          privacidad: { not: 'PRIVADO' },
           OR: [
             { autorId: decoded.userId },
-            { autor: { followersIds: { has: decoded.userId } } }
-          ],
-          privacidad: { not: 'PRIVADO' }
+            { autorId: { in: followingIds } }
+          ]
         },
-        skip: (page - 1) * limit,
-        take: limit,
+        skip: (Number(page) - 1) * Number(limit),
+        take: Number(limit),
         orderBy: { createdAt: 'desc' },
         include: {
           autor: {
@@ -131,6 +137,7 @@ export default class PostsController {
     }
   }
 
+  // Crear post
   public async store({ request, response }: HttpContext) {
     const token = request.header('Authorization')?.replace('Bearer ', '')
 
@@ -215,7 +222,22 @@ export default class PostsController {
 
     // Extraer hashtags del contenido
     const extractedHashtags = (content as string)?.match(/#\w+/g) || []
+    const content = request.input('content')
+    const privacidad = request.input('privacidad', 'PUBLICO')
+    const imagenes = request.input('imagenes', [])
+    const videos = request.input('videos', [])
+    const hashtags = request.input('hashtags', [])
+    const rawMenciones = request.input('menciones', [])
 
+    if (!content) {
+      return response.badRequest({ message: 'El campo "content" es obligatorio' })
+    }
+
+    const menciones = rawMenciones.map((m: any) =>
+      typeof m === 'string' ? JSON.parse(m) : m
+    )
+
+    const extractedHashtags = content.match(/#\w+/g) || []
     // Crear la publicación en transacción
     try {
       const post = await prisma.$transaction(async (trx) => {
@@ -251,14 +273,24 @@ export default class PostsController {
     }
 }
 
-  public async userPosts({ params, request, response }: HttpContext) {
+  // Feed del usuario autenticado: solo sus posts
+  public async userPosts({ request, response }: HttpContext) {
+    const token = request.header('Authorization')?.replace('Bearer ', '')
+
+    if (!token) {
+      return response.unauthorized({ message: 'Token no proporcionado' })
+    }
+
     try {
+      const decoded = jwt.verify(token, env.get('APP_KEY')) as { userId: string }
       const { page = 1, limit = 10 } = request.qs()
 
       const posts = await prisma.publicaciones.findMany({
-        where: { autor: { username: params.username } },
-        skip: (page - 1) * limit,
-        take: limit,
+        where: {
+          autorId: decoded.userId
+        },
+        skip: (Number(page) - 1) * Number(limit),
+        take: Number(limit),
         orderBy: { createdAt: 'desc' },
         include: {
           autor: {
@@ -298,60 +330,11 @@ export default class PostsController {
 
       return response.ok(posts)
     } catch (error) {
-      return response.internalServerError({ 
-        message: 'Error al obtener las publicaciones del usuario',
-        error: error.message 
+      console.error('Error al obtener publicaciones del usuario:', error)
+      return response.internalServerError({
+        message: 'Error al obtener publicaciones del usuario',
+        error: error.message
       })
     }
   }
-
-  public async delete({ params, response }: HttpContext) {
-    try {
-      const post = await prisma.publicaciones.delete({
-        where: { id: params.id }
-      })
-
-      return response.ok({ message: 'Publicación eliminada', post })
-    } catch (error) {
-      return response.internalServerError({ 
-        message: 'Error al eliminar la publicación',
-        error: error.message 
-      })
-    }
-  }
-
-  public async update({ params, request, response }: HttpContext) {
-    try {
-      const { content, imagenes, videos, hashtags, menciones, privacidad } = request.only([
-        'content', 'imagenes', 'videos', 'hashtags', 'menciones', 'privacidad'
-      ])
-
-      const post = await prisma.publicaciones.update({
-        where: { id: params.id },
-        data: {
-          content,
-          imagenes,
-          videos,
-          hashtags,
-          menciones,
-          privacidad
-        }
-      })
-
-      return response.ok({ message: 'Publicación actualizada', post })
-    } catch (error) {
-      return response.internalServerError({ 
-        message: 'Error al actualizar la publicación',
-        error: error.message 
-      })
-    }
-  }
-
-
-
-
-
-
-
-
 }
